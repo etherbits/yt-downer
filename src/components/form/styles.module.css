@@ -1,0 +1,26 @@
+.form {
+    display: flex;
+    flex-direction: column;
+    max-width: 600px;
+    height: 100%;
+    padding: 16px;
+    margin: 0;
+    gap: 16px;
+}
+
+.title {
+    margin: 8px 0;
+}
+
+.url-input {
+    border: 1px #666 solid;
+    padding: 8px;
+    font-size: 16px;
+}
+
+.submit {
+    background-color: orange;
+    border: none;
+    padding: 8px;
+    font-size: 16px;
+}
