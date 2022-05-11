@@ -13,17 +13,8 @@
     "tauri": {
         "allowlist": {
             "shell": {
-                "all": true,
-                "execute": true,
                 "sidecar": true,
-                "open": true,
-                "scope": [
-                    {
-                        "name": "yt-download",
-                        "cmd": "yt-dlp",
-                        "args": ["-x", "-o", { "validator": "\\S+" }, { "validator": "\\S+" }]
-                    }
-                ]
+                "scope": [{ "name": "lib/test", "args": true, "sidecar": true }]
             }
         },
         "bundle": {
@@ -33,7 +24,7 @@
             "deb": {
                 "depends": []
             },
-            "externalBin": [],
+            "externalBin": ["lib/test"],
             "icon": [
                 "icons/32x32.png",
                 "icons/128x128.png",
@@ -68,7 +59,7 @@
         "windows": [
             {
                 "fullscreen": false,
-                "height": 200,
+                "height": 290,
                 "resizable": true,
                 "title": "Youtube Downer",
                 "width": 600
