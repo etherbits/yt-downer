@@ -14,7 +14,11 @@
         "allowlist": {
             "shell": {
                 "sidecar": true,
-                "scope": [{ "name": "lib/test", "args": true, "sidecar": true }]
+                "execute": true,
+                "scope": [
+                    { "name": "lib/yt-download", "args": true, "sidecar": true },
+                    { "name": "lib/listener", "args": true, "sidecar": true }
+                ]
             }
         },
         "bundle": {
@@ -24,7 +28,7 @@
             "deb": {
                 "depends": []
             },
-            "externalBin": ["lib/test"],
+            "externalBin": ["lib/yt-download", "lib/listener"],
             "icon": [
                 "icons/32x32.png",
                 "icons/128x128.png",

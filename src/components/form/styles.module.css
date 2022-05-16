@@ -24,3 +24,15 @@
     padding: 8px;
     font-size: 16px;
 }
+
+.progress-bar-empty {
+    width: 100%;
+    height: 30px;
+    background-color: #aaf5;
+}
+
+.progress-bar-fill {
+    transition: 500ms;
+    height: 100%;
+    background-color: #99f;
+}
