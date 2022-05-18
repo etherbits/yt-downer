@@ -5,65 +5,164 @@
 
 use tauri::{ 
     api::process::{Command, CommandEvent}, 
-    Manager,  Window
+      Window
   }; 
 use std::sync::Mutex;
+use std::{
+    collections::HashMap,
+    env,
+    net::SocketAddr,
+    sync::{Arc},
+};
+use uuid::Uuid;
+use futures_channel::mpsc::{unbounded, UnboundedSender};
+use futures_util::{future, pin_mut, stream::TryStreamExt, StreamExt};
+use tokio::net::{TcpListener, TcpStream};
+use tungstenite::protocol::Message;
+
+type Tx = UnboundedSender<Message>;
+type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 
 struct MyState(Mutex<i32>);
 
-#[derive(Clone, serde::Serialize)]
-struct Payload {
-    index: i32,
-    body: String
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct Config {
+    path: String,
 }
 
-#[tauri::command]
-async fn download(window: Window, path: String, url: String, state: tauri::State<'_, MyState>) -> Result<bool, bool>  {
-    let (mut rx, mut _child) = Command::new_sidecar("yt-download")
-    .unwrap()
-    .args([path.clone(), url.clone()])
-    .spawn()
-    .unwrap();
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct DownloadArgs {
+    path: String,
+    url: String,
+}
 
-    let current_index = state.0.lock().unwrap().clone(); 
-    *state.0.lock().unwrap() += 1;
-    
-    while let Some(event) = rx.recv().await {
-        if let CommandEvent::Stdout(ref line) = event {
-            window.emit("download-event", Payload { index: current_index, body: line.clone()}).unwrap();
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct DownloadOutput {
+    uuid: String,
+    output: String,
+}
+
+async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: SocketAddr, config: Config) {
+    println!("Incoming TCP connection from: {}", addr);
+
+    let ws_stream = tokio_tungstenite::accept_async(raw_stream)
+        .await
+        .expect("Error during the websocket handshake occurred");
+    println!("WebSocket connection established: {}", addr);
+
+    // Insert the write part of this peer to the peer map.
+    let (tx, rx) = unbounded();
+    peer_map.lock().unwrap().insert(addr, tx);
+
+    let (outgoing, incoming) = ws_stream.split();
+
+    println!("{:?}, {:?}", incoming, peer_map);
+    let broadcast_incoming = incoming.try_for_each(|msg| {
+        {
+            println!("Received a message from {}: {}", addr, msg.to_text().unwrap());
+            let download_args_opt: Option<DownloadArgs> = match serde_json::from_str(&msg.to_string()) {
+                Ok(json) => json,
+                Err(_) => None
+            };
+
+            if let Some(mut download_args) =  download_args_opt {
+
+                if download_args.path == "default" {
+                    download_args.path = config.path.clone();
+                } 
+
+                let peers = peer_map.lock().unwrap();
+                let peers_copy = peers.clone();
+                
+                std::thread::spawn(move || {
+                    let peers = peers_copy;
+                    
+                    let (mut rx, mut _child) = Command::new_sidecar("yt-download")
+                    .unwrap()
+                    .args([download_args.path, download_args.url])
+                    .spawn()
+                    .unwrap();
+
+                    let uuid = Uuid::new_v4();
+                    while let Some(event) = rx.blocking_recv() {
+                        if let CommandEvent::Stdout(ref line) = event {
+
+                            let download_output = DownloadOutput {
+                                uuid: uuid.to_string(),
+                                output: line.clone(),
+                            }; 
+                            let json_string = serde_json::to_string(&download_output).unwrap();
+
+                            for peer in &peers {
+                                let (_addr, recp) = peer;
+                                recp.unbounded_send(tungstenite::Message::Text(json_string.clone())).unwrap();
+                            }
+                        }
+                    }
+                });
+            }
+            else{
+                println!("Invalid Request");
+            }
+               
+            future::ok(())
         }
+    });
+
+    let receive_from_others = rx.map(Ok).forward(outgoing);
+
+    pin_mut!(broadcast_incoming, receive_from_others);
+    future::select(broadcast_incoming, receive_from_others).await;
+
+    println!("{} disconnected", &addr);
+    peer_map.lock().unwrap().remove(&addr);
+}
+
+async fn listener(config: Config){
+    let addr = env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8080".to_string());
+
+    let state = PeerMap::new(Mutex::new(HashMap::new()));
+
+    // Create the event loop and TCP listener we'll accept connections on.
+    let try_socket = TcpListener::bind(&addr).await;
+    let listener = try_socket.expect("Failed to bind");
+    println!("Listening on: {}", addr);
+
+    // Let's spawn the handling of each connection in a separate task.
+    while let Ok((stream, addr)) = listener.accept().await {
+        tokio::spawn(handle_connection(state.clone(), stream, addr, config.clone()));
     }
 
-    
-    Ok(true)
 }
 
-async fn listener(window: Window){
-    let (mut rx, mut _child) = Command::new_sidecar("listener")
-    .unwrap()
-    .spawn()
-    .unwrap();
+fn load_settings() -> Config {
+    // let mut path = std::path::PathBuf::from(env::current_dir().unwrap());
+    // path.push("config");
     
-    while let Some(event) = rx.recv().await {
-        if let CommandEvent::Stdout(ref line) = event {
-                window.emit("request-event", line).unwrap();
-            }
-        }   
+    // println!("app path: {:?}", path);
+    // std::fs::create_dir("config_file");
+    // std::fs::write("config_file\\config.json", "{\"hello\": \"olla amigos\"}");
+    // println!("{}", String::from_utf8_lossy(&std::fs::read("config_file\\config.json").unwrap()));
+    
+    // dev path: C:/Users/nikaq/AppData/Roaming/com.tauri.dev/configs/settings/settings.json
+    let path = std::path::PathBuf::from("C:/Users/nikaq/AppData/Roaming/com.tauri.dev/configs/settings/settings.json");
+    let config: Config = serde_json::from_str(&String::from_utf8_lossy(&std::fs::read(path).unwrap())).unwrap();
+    return config;
 }
 
 fn main() {
     tauri::Builder::default()
-    .setup(|app| {
-        let main_window = app.get_window("main").unwrap();
+    .setup(|_app| {
+
+        let config = load_settings();
         
         tauri::async_runtime::spawn(
-            listener(main_window)
+            listener(config)
         );
         
         Ok(())
       })
     .manage( MyState(Default::default()) )
-    .invoke_handler(tauri::generate_handler![download])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    .run(tauri::generate_context!())
+    .expect("error while running tauri application");
 }
