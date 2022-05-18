@@ -8,12 +8,7 @@ type Downloads = {
         title: string
         progress: number
         status: string
-    }
-}
-
-declare global {
-    interface Window {
-        dwn: () => void
+        thumbnail_url: string
     }
 }
 
@@ -21,17 +16,19 @@ const Form: React.FC = () => {
     const [URL, setURL] = useState('https://www.youtube.com/watch?v=tH94YuQtg-8')
     const [path] = useState('D:/Test/')
     const [downloads, setDownloads] = useState<Downloads>({})
+    const [tempDownloadCount, setTempDownloadCount] = useState(0)
 
     const socketRef: MutableRefObject<WebSocket | null> = useRef(null)
     const isMountRef = useRef(false)
 
     const DownloadMusic = async () => {
-        if(!socketRef.current) return
+        if (!socketRef.current) return
         const request_json = {
             path: 'default',
             url: URL,
         }
         socketRef.current.send(JSON.stringify(request_json))
+        setTempDownloadCount((count) => count + 1)
     }
 
     const UpdateURL = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,52 +62,53 @@ const Form: React.FC = () => {
         socketRef.current.onmessage = async ({ data }) => {
             const download_data = await JSON.parse(data)
 
-            const {uuid, output} = download_data
+            const { uuid, output } = download_data
             const json = await JSON.parse(output)
             const temp = downloads
             temp[uuid] = json
-            
-            setDownloads({...temp})
+
+            setDownloads({ ...temp })
+
+            if (json.status !== "starting") return
+
+            setTempDownloadCount((count) => count - 1)
         }
-
-        // listen('download-event', async (event: { payload: { index: number; body: string } }) => {
-        //     const line = event.payload.body
-        //     const json = await JSON.parse(line)
-
-        //     const download: Download = {
-        //         title: json.title,
-        //         progress: json.progress,
-        //         status: json.status,
-        //     }
-
-        //     const temp = downloads
-        //     temp[event.payload.index] = download
-
-        //     setDownloads([...downloads]
-        // })
-    }, [path, downloads])
+    }, [path, tempDownloadCount, downloads])
 
     return (
         <form className={Styles['form']}>
             <h2 className={Styles['title']}>Download music by YT URL</h2>
-            <ul>
-
-            {Object.entries(downloads).map(([uuid, download]) => {
-                if (!download) return <React.Fragment></React.Fragment>
-                return (
-                    <li key={uuid}>
-                        <h3 className={Styles['title']}>
-                            {download.title} status: {download.status}
-                        </h3>
-                        <div className={Styles['progress-bar-empty']}>
-                            <div
-                                className={Styles['progress-bar-fill']}
-                                style={{ width: `${download.progress * 100}%` }}
+            <ul className={Styles["downloads"]}>
+                {Object.entries(downloads).map(([uuid, download]) => {
+                    if (!download) return <React.Fragment></React.Fragment>
+                    return (
+                        <li key={uuid} className={Styles["download"]}>
+                            <h3 className={Styles['title']} >
+                                {download.title} status: {download.status}
+                            </h3>
+                            <img className={Styles['image']} src={download.thumbnail_url} alt={download.title}/>
+                            <div className={Styles['progress-bar-empty']}>
+                                <div
+                                    className={Styles['progress-bar-fill']}
+                                    style={{ width: `${download.progress * 100}%` }}
                                 ></div>
-                        </div>
+                            </div>
+                        </li>
+                    )
+                })}
+                {tempDownloadCount > 0 && Array.from(Array(tempDownloadCount), (e, i) => {
+                    return <li key={i} className={`${Styles["download"]} ${Styles["temp-download"]}`}>
+                        <h3 className={Styles['title']}>
+                                status: fetching video...
+                            </h3>
+                            <div className={Styles['progress-bar-empty']}>
+                                <div
+                                    className={Styles['progress-bar-fill']}
+                                    style={{ width: 0 }}
+                                ></div>
+                            </div>
                     </li>
-                )
-            })}
+                })}
             </ul>
 
             <input

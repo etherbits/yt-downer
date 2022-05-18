@@ -4,8 +4,7 @@
 )]
 
 use tauri::{ 
-    api::process::{Command, CommandEvent}, 
-      Window
+    api::process::{Command, CommandEvent}
   }; 
 use std::sync::Mutex;
 use std::{

@@ -25,6 +25,40 @@
     font-size: 16px;
 }
 
+.downloads {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+    padding: 0;
+    gap: 1rem;
+    max-height: 500px;
+    overflow: auto;
+}
+
+.download {
+    background-color: #fff;
+    padding: 1rem;
+}
+
+.temp-download {
+    animation: appear 250ms;
+}
+
+@keyframes appear {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.image {
+    max-width: 100%;
+}
+
 .progress-bar-empty {
     width: 100%;
     height: 30px;

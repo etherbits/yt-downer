@@ -15,10 +15,7 @@
             "shell": {
                 "sidecar": true,
                 "execute": true,
-                "scope": [
-                    { "name": "lib/yt-download", "args": true, "sidecar": true },
-                    { "name": "lib/listener", "args": true, "sidecar": true }
-                ]
+                "scope": [{ "name": "lib/yt-download", "args": true, "sidecar": true }]
             },
             "fs": {
                 "all": true,
@@ -35,7 +32,7 @@
             "deb": {
                 "depends": []
             },
-            "externalBin": ["lib/yt-download", "lib/listener"],
+            "externalBin": ["lib/yt-download"],
             "icon": [
                 "icons/32x32.png",
                 "icons/128x128.png",
@@ -70,7 +67,7 @@
         "windows": [
             {
                 "fullscreen": false,
-                "height": 290,
+                "height": 730,
                 "resizable": true,
                 "title": "Youtube Downer",
                 "width": 600
