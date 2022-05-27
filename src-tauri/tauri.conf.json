@@ -15,7 +15,7 @@
             "shell": {
                 "sidecar": true,
                 "execute": true,
-                "scope": [{ "name": "lib/yt-download", "args": true, "sidecar": true }]
+                "scope": [{ "name": "external/yt-download", "args": true, "sidecar": true }]
             },
             "fs": {
                 "all": true,
@@ -32,7 +32,7 @@
             "deb": {
                 "depends": []
             },
-            "externalBin": ["lib/yt-download"],
+            "externalBin": ["external/yt-download"],
             "icon": [
                 "icons/32x32.png",
                 "icons/128x128.png",
@@ -40,7 +40,7 @@
                 "icons/icon.icns",
                 "icons/icon.ico"
             ],
-            "identifier": "com.tauri.dev",
+            "identifier": "yt-downer",
             "longDescription": "",
             "macOS": {
                 "entitlements": null,

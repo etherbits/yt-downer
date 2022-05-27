@@ -25,11 +25,6 @@ type PeerMap = Arc<Mutex<HashMap<SocketAddr, Tx>>>;
 struct MyState(Mutex<i32>);
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
-struct Config {
-    path: String,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct DownloadArgs {
     path: String,
     url: String,
@@ -41,7 +36,15 @@ struct DownloadOutput {
     output: String,
 }
 
-async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: SocketAddr, config: Config) {
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct OutputData {
+    status: String,
+    progress: f32,
+    title: String,
+    thumbnail_url: String
+}
+
+async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: SocketAddr) {
     println!("Incoming TCP connection from: {}", addr);
 
     let ws_stream = tokio_tungstenite::accept_async(raw_stream)
@@ -63,18 +66,37 @@ async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: Socke
                 Ok(json) => json,
                 Err(_) => None
             };
-
             if let Some(mut download_args) =  download_args_opt {
-
+                
                 if download_args.path == "default" {
-                    download_args.path = config.path.clone();
+                    let path = std::path::PathBuf::from("C:/Users/nikaq/AppData/Roaming/yt-downer/configs/settings/default_path.txt");
+                    let default_path: String = String::from_utf8_lossy(&std::fs::read(path).unwrap()).to_string();
+                    download_args.path = default_path.clone();
                 } 
-
+                
                 let peers = peer_map.lock().unwrap();
                 let peers_copy = peers.clone();
                 
                 std::thread::spawn(move || {
                     let peers = peers_copy;
+                    let uuid = Uuid::new_v4();
+
+                    let initial_data = OutputData {
+                        status: "fetching".to_string(),
+                        progress: 0.0,
+                        title: "none".to_string(),
+                        thumbnail_url: "none".to_string()
+                    };
+                    
+                    let initial_output = DownloadOutput {
+                        uuid: uuid.to_string(),
+                        output: serde_json::to_string(&initial_data).unwrap(),
+                    }; 
+
+                    for peer in &peers {
+                        let (_addr, recp) = peer;
+                        recp.unbounded_send(tungstenite::Message::Text(serde_json::to_string(&initial_output).unwrap())).unwrap();
+                    }
                     
                     let (mut rx, mut _child) = Command::new_sidecar("yt-download")
                     .unwrap()
@@ -82,10 +104,8 @@ async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: Socke
                     .spawn()
                     .unwrap();
 
-                    let uuid = Uuid::new_v4();
                     while let Some(event) = rx.blocking_recv() {
                         if let CommandEvent::Stdout(ref line) = event {
-
                             let download_output = DownloadOutput {
                                 uuid: uuid.to_string(),
                                 output: line.clone(),
@@ -117,7 +137,7 @@ async fn handle_connection(peer_map: PeerMap, raw_stream: TcpStream, addr: Socke
     peer_map.lock().unwrap().remove(&addr);
 }
 
-async fn listener(config: Config){
+async fn listener(){
     let addr = env::args().nth(1).unwrap_or_else(|| "127.0.0.1:8080".to_string());
 
     let state = PeerMap::new(Mutex::new(HashMap::new()));
@@ -129,34 +149,17 @@ async fn listener(config: Config){
 
     // Let's spawn the handling of each connection in a separate task.
     while let Ok((stream, addr)) = listener.accept().await {
-        tokio::spawn(handle_connection(state.clone(), stream, addr, config.clone()));
+        tokio::spawn(handle_connection(state.clone(), stream, addr));
     }
 
-}
-
-fn load_settings() -> Config {
-    // let mut path = std::path::PathBuf::from(env::current_dir().unwrap());
-    // path.push("config");
-    
-    // println!("app path: {:?}", path);
-    // std::fs::create_dir("config_file");
-    // std::fs::write("config_file\\config.json", "{\"hello\": \"olla amigos\"}");
-    // println!("{}", String::from_utf8_lossy(&std::fs::read("config_file\\config.json").unwrap()));
-    
-    // dev path: C:/Users/nikaq/AppData/Roaming/com.tauri.dev/configs/settings/settings.json
-    let path = std::path::PathBuf::from("C:/Users/nikaq/AppData/Roaming/com.tauri.dev/configs/settings/settings.json");
-    let config: Config = serde_json::from_str(&String::from_utf8_lossy(&std::fs::read(path).unwrap())).unwrap();
-    return config;
 }
 
 fn main() {
     tauri::Builder::default()
     .setup(|_app| {
-
-        let config = load_settings();
         
         tauri::async_runtime::spawn(
-            listener(config)
+            listener()
         );
         
         Ok(())
