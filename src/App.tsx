@@ -16,8 +16,8 @@ type Downloads = {
 }
 
 const App: React.FC = () => {
-    const [URL, setURL] = useState('https://www.youtube.com/watch?v=tH94YuQtg-8')
-    const [path, setPath] = useState('D:/Test/')
+    const [URL, setURL] = useState('')
+    const [path, setPath] = useState('')
     const [downloads, setDownloads] = useState<Downloads>({})
 
     const socketRef: MutableRefObject<WebSocket | null> = useRef(null)
@@ -114,7 +114,7 @@ const App: React.FC = () => {
                         )
                     })}
             </ul>
-
+      
             <div className={Styles['controls']}>
                 <div className={Styles['input-group']}>
                     <input

@@ -67,10 +67,10 @@
         "windows": [
             {
                 "fullscreen": false,
-                "height": 730,
-                "resizable": true,
+                "height": 687,
+                "resizable": false,
                 "title": "Youtube Downer",
-                "width": 600
+                "width": 550
             }
         ]
     }
